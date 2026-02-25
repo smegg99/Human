@@ -172,3 +172,32 @@ func (c *Cursor) KeyCombo(modifiers []input.Key, key input.Key) {
 func (c *Cursor) Pos() (float64, float64) {
 	return c.pos.X, c.pos.Y
 }
+
+// ClickAndType clicks on an element, clears any existing value, then types the
+// given text with human-like keystroke timing.
+func (c *Cursor) ClickAndType(el *rod.Element, text string) error {
+	if err := c.Click(el); err != nil {
+		return err
+	}
+
+	c.KeyCombo([]input.Key{input.ControlLeft}, input.KeyA)
+	sleepJitter(40, 120)
+	c.PressKey(input.Backspace)
+	sleepJitter(60, 180)
+
+	// Verify the field is actually empty via DOM property, if not, clear with JS and re-fire events to ensure any framework bindings update
+	val, err := el.Property("value")
+	if err == nil && val.String() != "" {
+		_, _ = el.Eval(`() => {
+			this.value = '';
+			this.dispatchEvent(new Event('input',  {bubbles: true}));
+			this.dispatchEvent(new Event('change', {bubbles: true}));
+		}`)
+		sleepJitter(30, 80)
+	}
+
+	c.Type(text)
+
+	sleepJitter(300, 1000)
+	return nil
+}
