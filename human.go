@@ -180,6 +180,13 @@ func (c *Cursor) ClickAndType(el *rod.Element, text string) error {
 		return err
 	}
 
+	_, _ = el.Eval(`() => {
+		if (document.activeElement !== this) {
+			this.focus();
+		}
+	}`)
+	sleepJitter(20, 60)
+
 	c.KeyCombo([]input.Key{input.ControlLeft}, input.KeyA)
 	sleepJitter(40, 120)
 	c.PressKey(input.Backspace)

@@ -92,7 +92,9 @@ func scrollIntoView(el *rod.Element) (point, error) {
 	if err != nil {
 		return point{}, err
 	}
-	sleepJitter(200, 400)
+
+	_ = el.WaitStable(200 * time.Millisecond)
+	sleepJitter(50, 150)
 
 	shape, err := el.Shape()
 	if err != nil {
