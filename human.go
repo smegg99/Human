@@ -34,8 +34,67 @@ func New(page *rod.Page, opts ...Option) *Cursor {
 	}
 }
 
+func jsScrollIntoView(el *rod.Element) error {
+	_, err := el.Eval(`() => this.scrollIntoView({block: "center", inline: "center"})`)
+	return err
+}
+
+func jsFocus(el *rod.Element) error {
+	_, err := el.Eval(`() => this.focus()`)
+	return err
+}
+
+func jsClick(el *rod.Element) error {
+	_, err := el.Eval(`() => this.click()`)
+	return err
+}
+
+func jsDoubleClick(el *rod.Element) error {
+	_, err := el.Eval(`() => {
+			this.dispatchEvent(new MouseEvent('dblclick', {bubbles: true, cancelable: true}));
+		}`)
+	return err
+}
+
+func jsRightClick(el *rod.Element) error {
+	_, err := el.Eval(`() => {
+			this.dispatchEvent(new MouseEvent('contextmenu', {bubbles: true, cancelable: true}));
+		}`)
+	return err
+}
+
+func jsDragDrop(from, to *rod.Element) error {
+	_, err := from.Eval(`(to) => {
+			const dataTransfer = new DataTransfer();
+			this.dispatchEvent(new DragEvent('dragstart', {bubbles: true, dataTransfer}));
+			to.dispatchEvent(new DragEvent('drop', {bubbles: true, dataTransfer}));
+			this.dispatchEvent(new DragEvent('dragend', {bubbles: true, dataTransfer}));
+		}`, to.Object)
+	return err
+}
+
+func jsDirectClickAndType(el *rod.Element, text string) error {
+	_, err := el.Eval(`(text) => {
+		this.scrollIntoView({block: "center", inline: "center"});
+
+		this.focus();
+		this.click();
+
+		this.value = '';
+
+		this.value = text;
+
+		this.dispatchEvent(new Event('input',  {bubbles: true}));
+		this.dispatchEvent(new Event('change', {bubbles: true}));
+	}`, text)
+	return err
+}
+
 // Move moves the cursor to a random point inside the element.
 func (c *Cursor) Move(el *rod.Element) error {
+	if c.cfg.Direct {
+		return jsScrollIntoView(el)
+	}
 	dst, err := scrollIntoView(el)
 	if err != nil {
 		return err
@@ -46,6 +105,9 @@ func (c *Cursor) Move(el *rod.Element) error {
 
 // MoveSteady moves to the element with a straight trajectory.
 func (c *Cursor) MoveSteady(el *rod.Element) error {
+	if c.cfg.Direct {
+		return jsScrollIntoView(el)
+	}
 	dst, err := scrollIntoView(el)
 	if err != nil {
 		return err
@@ -58,12 +120,18 @@ func (c *Cursor) MoveSteady(el *rod.Element) error {
 
 // MoveToPoint moves the cursor to exact coordinates.
 func (c *Cursor) MoveToPoint(x, y float64) {
+	if c.cfg.Direct {
+		return
+	}
 	dst := point{x, y}
 	c.pos = moveMouse(c.page, c.pos, dst, c.viewW, c.viewH, &c.cfg)
 }
 
 // Click moves to the element and left-clicks.
 func (c *Cursor) Click(el *rod.Element) error {
+	if c.cfg.Direct {
+		return jsClick(el)
+	}
 	if err := c.Move(el); err != nil {
 		return err
 	}
@@ -73,6 +141,9 @@ func (c *Cursor) Click(el *rod.Element) error {
 
 // DoubleClick moves to the element and double-clicks.
 func (c *Cursor) DoubleClick(el *rod.Element) error {
+	if c.cfg.Direct {
+		return jsDoubleClick(el)
+	}
 	if err := c.Move(el); err != nil {
 		return err
 	}
@@ -82,6 +153,9 @@ func (c *Cursor) DoubleClick(el *rod.Element) error {
 
 // ClickHold clicks and holds for the given duration in milliseconds.
 func (c *Cursor) ClickHold(el *rod.Element, holdMs int) error {
+	if c.cfg.Direct {
+		return jsClick(el)
+	}
 	if err := c.Move(el); err != nil {
 		return err
 	}
@@ -91,6 +165,9 @@ func (c *Cursor) ClickHold(el *rod.Element, holdMs int) error {
 
 // RightClick moves to the element and right-clicks.
 func (c *Cursor) RightClick(el *rod.Element) error {
+	if c.cfg.Direct {
+		return jsRightClick(el)
+	}
 	if err := c.Move(el); err != nil {
 		return err
 	}
@@ -103,6 +180,10 @@ func (c *Cursor) RightClick(el *rod.Element) error {
 
 // DragDrop drags from one element to another.
 func (c *Cursor) DragDrop(from, to *rod.Element) error {
+	if c.cfg.Direct {
+		return jsDragDrop(from, to)
+	}
+
 	if err := c.Move(from); err != nil {
 		return err
 	}
@@ -130,7 +211,9 @@ func (c *Cursor) Scroll(deltaX, deltaY float64) {
 		DeltaX: deltaX,
 		DeltaY: deltaY,
 	}.Call(c.page)
-	sleepJitter(100, 300)
+	if !c.cfg.Direct {
+		sleepJitter(100, 300)
+	}
 }
 
 func (c *Cursor) click(n int, holdMs int) {
@@ -148,11 +231,21 @@ func (c *Cursor) click(n int, holdMs int) {
 
 // Type types text with human-like per-key delays.
 func (c *Cursor) Type(text string) {
+	if c.cfg.Direct {
+		for _, ch := range text {
+			typeChar(c.page, ch)
+		}
+		return
+	}
 	typeText(c.page, text, &c.cfg)
 }
 
 // TypeWithSpeed types text with custom per-key delay range in milliseconds.
 func (c *Cursor) TypeWithSpeed(text string, minDelayMs, maxDelayMs int) {
+	if c.cfg.Direct {
+		c.Type(text)
+		return
+	}
 	cfg := c.cfg
 	cfg.TypeDelay = [2]int{minDelayMs, maxDelayMs}
 	typeText(c.page, text, &cfg)
@@ -176,15 +269,15 @@ func (c *Cursor) Pos() (float64, float64) {
 // ClickAndType clicks on an element, clears any existing value, then types the
 // given text with human-like keystroke timing.
 func (c *Cursor) ClickAndType(el *rod.Element, text string) error {
+	if c.cfg.Direct {
+		return jsDirectClickAndType(el, text)
+	}
+
 	if err := c.Click(el); err != nil {
 		return err
 	}
 
-	_, _ = el.Eval(`() => {
-		if (document.activeElement !== this) {
-			this.focus();
-		}
-	}`)
+	_ = jsFocus(el)
 	sleepJitter(20, 60)
 
 	c.KeyCombo([]input.Key{input.ControlLeft}, input.KeyA)
@@ -192,7 +285,8 @@ func (c *Cursor) ClickAndType(el *rod.Element, text string) error {
 	c.PressKey(input.Backspace)
 	sleepJitter(60, 180)
 
-	// Verify the field is actually empty via DOM property, if not, clear with JS and re-fire events to ensure any framework bindings update
+	// Verify the field is actually empty via DOM property, if not, clear
+	// with JS and re-fire events to ensure any framework bindings update.
 	val, err := el.Property("value")
 	if err == nil && val.String() != "" {
 		_, _ = el.Eval(`() => {

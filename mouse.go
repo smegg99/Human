@@ -2,6 +2,7 @@
 package human
 
 import (
+	"fmt"
 	"math"
 	"math/rand/v2"
 	"time"
@@ -88,19 +89,28 @@ func mouseUp(page *rod.Page, x, y float64, button proto.InputMouseButton) {
 }
 
 func scrollIntoView(el *rod.Element) (point, error) {
-	err := el.ScrollIntoView()
+	pt, err := el.WaitInteractable()
 	if err != nil {
 		return point{}, err
 	}
 
-	_ = el.WaitStable(200 * time.Millisecond)
 	sleepJitter(50, 150)
 
 	shape, err := el.Shape()
-	if err != nil {
-		return point{}, err
+	if err != nil || shape == nil {
+		if pt != nil {
+			return point{X: pt.X, Y: pt.Y}, nil
+		}
+		return point{}, fmt.Errorf("element has no shape and no interactable point")
 	}
 	box := shape.Box()
+
+	if box.Width < 1 || box.Height < 1 {
+		if pt != nil {
+			return point{X: pt.X, Y: pt.Y}, nil
+		}
+		return point{}, fmt.Errorf("element has zero-size bounding box: %.0fx%.0f", box.Width, box.Height)
+	}
 
 	rx := float64(randIntRange(20, 80)) / 100.0
 	ry := float64(randIntRange(20, 80)) / 100.0
@@ -115,7 +125,13 @@ func getViewportSize(page *rod.Page) (int, int) {
 	if err != nil {
 		return 1920, 1080
 	}
-	return int(metrics.CSSLayoutViewport.ClientWidth), int(metrics.CSSLayoutViewport.ClientHeight)
+	w := int(metrics.CSSLayoutViewport.ClientWidth)
+	h := int(metrics.CSSLayoutViewport.ClientHeight)
+
+	if w < 1 || h < 1 {
+		return 1920, 1080
+	}
+	return w, h
 }
 
 func sleepJitter(loMs, hiMs int) {

@@ -3,6 +3,11 @@ package human
 
 // Config controls cursor timing and behavior.
 type Config struct {
+	// Direct bypasses all human-like mouse movement, click timing, and
+	// keystroke delays. When true, interactions use rod's native element
+	// methods directly. It will also use JS-based versions of some methods to avoid issues in headless mode.
+	Direct bool
+
 	// Hesitation is the probability of pausing before mouse movement (0-1).
 	Hesitation float64
 
@@ -77,6 +82,20 @@ func WithTypingSpeed(minMs, maxMs int) Option {
 // WithThinkPause sets the probability of longer pauses while typing (0-1).
 func WithThinkPause(chance float64) Option {
 	return func(c *Config) { c.ThinkPause = chance }
+}
+
+// Direct returns a configuration that bypasses all human-like simulation.
+func Direct() Option {
+	return func(c *Config) {
+		c.Direct = true
+	}
+}
+
+// WithDirect sets the direct mode flag.
+func WithDirect(on bool) Option {
+	return func(c *Config) {
+		c.Direct = on
+	}
 }
 
 // Fast returns a configuration with fatser movements and typing.

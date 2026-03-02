@@ -2,7 +2,7 @@
 
 Human-like mouse and keyboard for [go-rod](https://go-rod.github.io/).
 
-Moves the cursor along randomized Bezier curves and types with natural timing. Works in headless mode (all input goes through CDP). I needed such functionality in my [ThugHunter](https://github.com/smegg99/ThugHunter) project, but it proved useful in other automation tasks as well so I made it into a separate package. Inspired by [riflosnake/HumanCursor](https://github.com/riflosnake/HumanCursor).
+Moves the cursor along randomized Bezier curves and types with natural timing. Works in headless mode (all input goes through CDP). Includes a **Direct mode** that bypasses all simulation and uses JS-based element methods, guaranteed to work in headless. I needed such functionality in my [ThugHunter](https://github.com/smegg99/ThugHunter) project, but it proved useful in other automation tasks as well so I made it into a separate package. Inspired by [riflosnake/HumanCursor](https://github.com/riflosnake/HumanCursor).
 
 ## Install
 
@@ -29,6 +29,10 @@ cursor := human.New(page, human.Fast())      // power user
 cursor := human.New(page, human.Swift())     // fast but natural
 cursor := human.New(page, human.Casual())    // everyday user
 cursor := human.New(page, human.Beginner())  // inexperienced
+
+// Direct mode bypasses all human-like simulation, uses JS element methods.
+// Guaranteed to work in headless mode.
+cursor := human.New(page, human.Direct())
 
 // Individual options
 cursor := human.New(page,
@@ -70,6 +74,13 @@ cursor.Type("text")
 cursor.TypeWithSpeed("text", 20, 60)
 cursor.PressKey(input.Enter)
 cursor.KeyCombo([]input.Key{input.ControlLeft}, input.KeyA)
+```
+
+### Click and Type
+
+```go
+// Clicks the element, clears existing value, types text
+cursor.ClickAndType(el, "hello world")
 ```
 
 ## License
