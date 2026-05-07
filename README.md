@@ -83,6 +83,10 @@ cursor.KeyCombo([]input.Key{input.ControlLeft}, input.KeyA)
 cursor.ClickAndType(el, "hello world")
 ```
 
+## Check out this discord server!
+
+https://discord.gg/edGmPTFufu
+
 ## License
 
 MIT
